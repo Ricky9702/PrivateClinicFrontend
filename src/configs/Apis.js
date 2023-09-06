@@ -11,7 +11,8 @@ export const endpoints = {
   "report-detail": `${SERVER_CONTEXT}/api/report-details/`,
   "medical-report": `${SERVER_CONTEXT}/api/medical-report/`,
   "category":  `${SERVER_CONTEXT}/api/categories/`,
-  "medicine": `${SERVER_CONTEXT}/api/medicines/`
+  "medicine": `${SERVER_CONTEXT}/api/medicines/`,
+  "unit" : `${SERVER_CONTEXT}/api/units/`
 };
 
 export default axios.create({

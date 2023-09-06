@@ -1,6 +1,6 @@
 import axios from "axios"
 import { useEffect, useState } from "react"
-import { Alert, Button, Col, Container, Form, Modal, Row, Table } from "react-bootstrap"
+import { Alert, Button, Col, Container, FloatingLabel, Form, FormLabel, FormSelect, ListGroup, ListGroupItem, Modal, Row, Tab, Table } from "react-bootstrap"
 import MedicalReport from "../pages/MedicalReport"
 import { useLocation, useNavigate } from "react-router-dom"
 import Apis, { endpoints } from "../configs/Apis"
@@ -9,7 +9,7 @@ const MedicalReportPatientReportHistory = () => {
     const [reportList, setReportList] = useState(JSON.parse(sessionStorage.getItem("reportList")) || null)
     const [showDialog, setShowDialog] = useState(false);
     const [selectedReport, setSelectedReport] = useState(null);
-    const [keyword, setKeyword] = useState('');
+    const [keyword, setKeyword] = useState(sessionStorage.getItem("kw") || '');
     const [suggestedPatients, setSuggestedPatients] = useState([]);
     const navigate = useNavigate();
     const [currentPage, setCurrentPage] = useState(1);
@@ -103,15 +103,15 @@ const MedicalReportPatientReportHistory = () => {
 
         if (patientParams) {
             newSearchParams.set("patientId", patientParams);
-        } else newSearchParams.delete("patientId") 
+        } else newSearchParams.delete("patientId")
 
         if (fromDateParams) {
             newSearchParams.set("fromDate", fromDateParams);
-        } else newSearchParams.delete("fromDate") 
+        } else newSearchParams.delete("fromDate")
 
         if (toDateParams) {
             newSearchParams.set("toDate", toDateParams);
-        } else newSearchParams.delete("toDate") 
+        } else newSearchParams.delete("toDate")
 
         navigate({
             pathname: location.pathname,
@@ -121,12 +121,11 @@ const MedicalReportPatientReportHistory = () => {
     };
 
     useEffect(() => {
-        if (!reportList || reportList === null) loadReportList();
+        if (reportList === null) loadReportList();
 
         const getPatientById = async () => {
             let e = endpoints["patient"]
             let res = await Apis.get(`${e}?id=${patientId}`)
-            setSuggestedPatients(res.data)
         }
 
         if (patientId && patientId !== "") getPatientById()
@@ -152,40 +151,50 @@ const MedicalReportPatientReportHistory = () => {
         if (value !== null) {
             let filter = value.split('-')[0];
             setKeyword(filter);
+            sessionStorage.setItem("kw", filter);
 
-            if (filter.trim() !== '') {
+            if (filter.trim().length > 0) {
                 let e = endpoints["patient"];
                 const res = await Apis.get(`${e}?patientName=${filter}`);
                 setSuggestedPatients(res.data);
-    
-                if (suggestedPatients.length === 1) {
-                    setPatientId(suggestedPatients[0].id);
-                    sessionStorage.setItem("patientId", suggestedPatients[0].id)
-                    updateSearchParams("patientId", suggestedPatients[0].id);
-                } else {
-                    setReportList(null);
-                    sessionStorage.removeItem("patientId")
-                    updateSearchParams("patientId", "");
-                }
             } else {
-                onClearPatientNameClick();
+                setSuggestedPatients([])
             }
         }
     };
 
-    const onClearPatientNameClick = () => {
-        setKeyword('')
+
+    const onClearClick = () => {
+
+        if (keyword) {
+            setKeyword('')
+            sessionStorage.removeItem("kw")
+            setSuggestedPatients([])
+        }
+
+        if (patientId || toDate || fromDate) {
+            setSuggestedPatients([])
+            setPatientId("")
+            setFromDate("")
+            setToDate("")
+            sessionStorage.removeItem("reportList")
+            sessionStorage.removeItem("params")
+            sessionStorage.removeItem("patientId")
+            sessionStorage.removeItem("fromDate")
+            sessionStorage.removeItem("toDate")
+            sessionStorage.removeItem("kw")
+            setReportList(null)
+            navigate(location.pathname.substring(0, location.search))
+        }
+    }
+
+    const onPatientItemClick = (patient) => {
+        if (patientId !== patient.id) setReportList(null)
+        setKeyword(patient.userId.name)
         setSuggestedPatients([])
-        setPatientId("")
-        setFromDate("")
-        setToDate("")
-        setReportList(null)
-        sessionStorage.removeItem("reportList")
-        sessionStorage.removeItem("params")
-        sessionStorage.removeItem("patientId")
-        sessionStorage.removeItem("fromDate")
-        sessionStorage.removeItem("toDate")
-        navigate(location.pathname.substring(0, location.search))
+        sessionStorage.setItem("kw", patient.userId.name);
+        setPatientId(patient.id)
+        updateSearchParams("patientId", patient.id)
     }
 
     const onFromDateChange = (date) => {
@@ -212,46 +221,73 @@ const MedicalReportPatientReportHistory = () => {
     // Change page
     const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
+    const tableStyles = {
+        position: 'absolute',
+        width: '50%',
+        maxHeight: '200px',
+        overflowY: 'auto',
+        border: '1px solid #ced4da',
+        backgroundColor: '#ffffff',
+        zIndex: 1,
+        boxShadow: '0px 8px 16px 0px rgba(0, 0, 0, 0.2)',
+    };
 
     return (
         <Container>
             <MedicalReport />
-            <Form className="mt-5" inline>
+            <Form className="mt-4" inline>
                 <Row>
                     <Col xs="auto">
+                        <Form.Label>Tìm kiếm</Form.Label>
                         <Form.Control
                             type="text"
                             placeholder="Tìm theo tên bệnh nhân..."
-                            className=" mr-sm-2"
+                            className="mr-sm-2"
                             value={keyword}
-                            list="data"
                             onChange={(e) => onKeyWordChange(e.target.value)}
                         />
+
+                        {/* Display suggested patients */}
                         {suggestedPatients.length > 0 && (
-                            <datalist id="data">
-                                {suggestedPatients.map((patient) => (
-                                    <Container>
-                                        <option
-                                            key={patient.id}
-                                            className="btn btn-danger btn-sm mt-3" >
-                                            {`${patient.userId.name} - ${patient.userId.gender === "male" ? "Nam" : "Nữ"} - ${patient.userId.birthday.substring(0, 4)}`}
-                                        </option>
-                                    </Container>
-                                ))}
-                            </datalist>
+                            <div style={tableStyles}>
+                                <Table hover size="sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Mã bệnh nhân</th>
+                                            <th>Tên bệnh nhân</th>
+                                            <th>Giới tính</th>
+                                            <th>Ngày sinh</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {suggestedPatients.map((patient) => (
+                                            <tr key={patient.id} 
+                                            style={{cursor: 'pointer'}}
+                                            onClick={() => onPatientItemClick(patient)}>
+                                                <td>{patient.id}</td>
+                                                <td>{patient.userId.name}</td>
+                                                <td>{patient.userId.gender === "male" ? "Nam" : "Nữ"}</td>
+                                                <td>{patient.userId.birthday}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </Table>
+                            </div>
                         )}
                     </Col>
-                    
-                    <Col xs="auto">
-                        <p  className="mt-1" >From: {" "}<input type="date" value={fromDate} onChange={(e) => onFromDateChange(e.target.value)}></input> </p>
-                    </Col>
-                    <Col xs="auto">
-                        <p  className="mt-1">To: <input type="date" value={toDate} onChange={(e) => onToDateChange(e.target.value)}></input> </p>
-                    </Col>
-                    <Col xs="auto">
-                        <Button className="btn-danger" onClick={() => onClearPatientNameClick()}>Clear</Button>
-                    </Col>
 
+                    <Col xs="auto">
+                        <Form.Label>From: </Form.Label>
+                        <Form.Control type="date" value={fromDate} onChange={(e) => onFromDateChange(e.target.value)}></Form.Control>
+                    </Col>
+                    <Col xs="auto">
+                        <Form.Label>To: </Form.Label>
+                        <Form.Control type="date" value={toDate} onChange={(e) => onToDateChange(e.target.value)}></Form.Control>
+                    </Col>
+                    <Col xs="auto">
+                        <br></br>
+                        <Button className="btn-danger mt-2" onClick={() => onClearClick()}>Clear</Button>
+                    </Col>
                 </Row>
             </Form>
 
@@ -354,9 +390,9 @@ const MedicalReportPatientReportHistory = () => {
                                                 : detail.medicineUnitId.unitId.name === "bottle"
                                                     ? "Chai"
                                                     : detail.medicineUnitId.unitId.name === "jar"
-                                                        ? "Hủ"
-                                                        : detail.medicineUnitId.unitId.name === "table"
-                                                            ? "Vĩ"
+                                                        ? "Lọ"
+                                                        : detail.medicineUnitId.unitId.name === "tablet"
+                                                            ? "Vỉ"
                                                             : "Gói"}
                                         </p>
 
